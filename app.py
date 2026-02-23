@@ -21,8 +21,7 @@ with st.sidebar:
     tickers = st.multiselect("Tickers", TICKERS, default=TICKERS)
     data_source = st.selectbox("Data Source", ["yfinance", "polygon"], index=0)
     os.environ["DATA_SOURCE"] = data_source
-    st.caption("Set POLYGON_API_KEY env var if using Polygon.")
-    run_backtest = st.button("Run Backtests")
+    st.caption("Backtests run automatically every hour. Set POLYGON_API_KEY env var if using Polygon.")
 
 
 @st.cache_data(ttl=60 * 60)
@@ -30,8 +29,19 @@ def load_data(ticker: str) -> pd.DataFrame:
     return get_price_data(ticker, interval=DEFAULT_INTERVAL, period=DEFAULT_PERIOD)
 
 
-if run_backtest:
-    st.subheader("Backtest Comparison")
+@st.cache_data(ttl=60 * 60)
+def run_backtests_cached(ticker: str, df: pd.DataFrame):
+    results = run_backtests(df)
+    best_name, best_res = pick_best(results)
+    stats = best_res.stats
+    return best_name, {
+        "Return %": round(float(stats.get("Return [%]", 0.0)), 2),
+        "Sharpe": round(float(stats.get("Sharpe Ratio", 0.0)), 2),
+        "Win Rate %": round(float(stats.get("Win Rate [%]", 0.0)), 2),
+    }
+
+
+st.subheader("Backtest Comparison (auto-refresh hourly)")
 
 results_table = []
 
@@ -41,22 +51,16 @@ for ticker in tickers:
         st.warning(f"No data for {ticker}")
         continue
 
-    best_name = None
-    if run_backtest:
-        results = run_backtests(df)
-        best_name, best_res = pick_best(results)
-        stats = best_res.stats
-        results_table.append(
-            {
-                "Ticker": ticker,
-                "Best Strategy": best_name,
-                "Return %": round(float(stats.get("Return [%]", 0.0)), 2),
-                "Sharpe": round(float(stats.get("Sharpe Ratio", 0.0)), 2),
-                "Win Rate %": round(float(stats.get("Win Rate [%]", 0.0)), 2),
-            }
-        )
-    else:
-        best_name = "MeanReversionRSIBB"
+    best_name, stats = run_backtests_cached(ticker, df)
+    results_table.append(
+        {
+            "Ticker": ticker,
+            "Best Strategy": best_name,
+            "Return %": stats["Return %"],
+            "Sharpe": stats["Sharpe"],
+            "Win Rate %": stats["Win Rate %"],
+        }
+    )
 
     signal = get_signal(best_name, df)
     st.write(
