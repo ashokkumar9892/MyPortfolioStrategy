@@ -1,0 +1,7 @@
+backtesting==0.3.3
+pandas==2.2.2
+numpy==1.26.4
+yfinance==0.2.54
+streamlit==1.42.0
+streamlit-autorefresh==1.0.1
+requests==2.32.3
